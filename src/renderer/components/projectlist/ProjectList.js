@@ -1,117 +1,11 @@
 import React from 'react'
-import PropTypes from 'prop-types'
 import { Button } from './Button'
 import { FilterInput } from './FilterInput'
 import { List } from './List'
-import { Card } from './Card'
 import { useList, useServices } from '../hooks'
-import { militaryFormat } from '../../../shared/datetime'
 import MemberManagement from './MemberManagement'
+import { ProjectListItem } from './ProjectListItem'
 
-/**
- *
- */
-const Title = props => {
-  const [value, setValue] = React.useState(props.value)
-  const handleChange = ({ target }) => setValue(target.value)
-  const handleBlur = () => props.onChange(value)
-
-  // Don't let event bubble up to list.
-  // This is mainly for capturing META-A (multiselect) right here.
-  const handleKeyDown = event => event.stopPropagation()
-
-  return <input
-    className='card-title'
-    value={value}
-    onChange={handleChange}
-    onBlur={handleBlur}
-    onKeyDown={handleKeyDown}
-  />
-}
-
-Title.propTypes = {
-  value: PropTypes.string.isRequired,
-  onChange: PropTypes.func.isRequired
-}
-
-/**
- *
- */
-const Media = props => {
-  const { loadPreview } = props
-  const scale = 0.5
-  const width = `${320 * scale}px`
-  const height = `${240 * scale}px`
-  const [source, setSource] = React.useState(undefined)
-
-  React.useEffect(() => {
-    (async () => {
-      const source = await loadPreview()
-      setSource(source)
-    })()
-  }, [loadPreview])
-
-  const placeholder = (text = null) => (
-    <div className='placeholder' style={{ width, height }}>
-      { text }
-    </div>
-  )
-
-  return source === undefined
-    ? placeholder()
-    : source === null
-      ? placeholder('Preview not available')
-      : <img src={source} width={width} height={height}/>
-}
-
-Media.propTypes = {
-  loadPreview: PropTypes.func.isRequired
-}
-
-
-/**
- *
- */
-const CustomButton = props => (
-  <Button
-    danger={props.danger}
-    onClick={props.onClick}
-    disabled={props.disabled}
-    style={{ ...props.style, background: 'inherit' }}
-  >
-    {props.text}
-  </Button>
-)
-
-CustomButton.propTypes = {
-  danger: PropTypes.bool,
-  onClick: PropTypes.func.isRequired,
-  style: PropTypes.object,
-  text: PropTypes.string.isRequired,
-  disabled: PropTypes.bool
-}
-
-
-/**
- *
- */
-const ButtonBar = props => (
-  <div style={{
-    display: 'flex',
-    marginTop: 'auto',
-    gap: '8px'
-  }}>
-    {props.children}
-  </div>
-)
-
-ButtonBar.propTypes = {
-  children: PropTypes.array.isRequired
-}
-
-/**
- *
- */
 export const ProjectList = () => {
 
   const { projectStore, ipcRenderer, replicationProvider } = useServices()
@@ -337,93 +231,17 @@ export const ProjectList = () => {
   const handleCreate = () => projectStore.createProject()
 
   /* eslint-disable react/prop-types */
-  const child = React.useCallback(props => {
-    const { entry: project } = props
-
-
-    const send = message => () => ipcRenderer.send(message, project.id)
-    const loadPreview = () => projectStore.getPreview(project.id)
-    const handleRename = name => projectStore.updateProject({ ...project, name })
-    const handleDelete = () => projectStore.deleteProject(project.id)
-    const handleClick = id => ({ metaKey, shiftKey }) => {
-      dispatch({ type: 'click', id, shiftKey, metaKey })
-    }
-    const handleJoin = async () => {
-      const seed = await replication.join(project.id)
-      // createProject requires the id to be a UUID without prefix
-      await projectStore.createProject(project.id.split(':')[1], project.name, ['SHARED'])
-      await projectStore.putReplicationSeed(project.id, seed)
-    }
-
-    const handleShare = async () => {
-      const seed = await replication.share(project.id, project.name, project.description || '')
-      await projectStore.addTag(project.id, 'SHARED')
-      await projectStore.putReplicationSeed(project.id, seed)
-      fetch(project.id)
-    }
-
-    /* const handleMembers = async () => {
-      console.log(`Handle members for ${project.name} - ${project.id}`)
-      const members = await replication.members(project.id)
-      console.dir(members)
-    } */
-
-    const isOpen = project.tags
-      ? project.tags.includes('OPEN')
-      : false
-
-    const isInvited = project.tags
-      ? project.tags.includes('INVITED')
-      : false
-
-    const isShared = project.tags
-      ? project.tags.includes('SHARED')
-      : false
-
-    return (
-      <div
-        key={props.id}
-        ref={props.ref}
-        style={{ padding: '3px 6px' }}
-      >
-        <Card
-          onClick={handleClick(props.id)}
-          selected={props.selected}
-          id={props.id}
-        >
-          <div style={{ display: 'flex', flexDirection: 'row' }}>
-            <div className='card-content'>
-              <Title value={project.name} onChange={handleRename}/>
-              <span className='card-text'>{militaryFormat.fromISO(project.lastAccess)}</span>
-
-              <ButtonBar>
-                <CustomButton onClick={send('OPEN_PROJECT')} text='Open' disabled={isInvited && !isShared}/>
-                <CustomButton onClick={send('EXPORT_PROJECT')} text='Export' disabled={true}/>
-                { (replication && isInvited) && <CustomButton onClick={handleJoin} text='Join' disabled={offline}/> }
-                { (replication && !isInvited && !isShared && !isOpen) && <CustomButton onClick={handleShare} text='Share' disabled={offline}/> }
-                { (replication && isShared) &&
-                    <CustomButton
-                      text='Members'
-                      onClick={() => setManagedProject(project)}
-                    />
-                }
-                <CustomButton
-                  danger
-                  onClick={handleDelete}
-                  style={{ marginLeft: 'auto' }}
-                  text='Delete'
-                  disabled={isOpen}
-                />
-              </ButtonBar>
-            </div>
-            <Media loadPreview={loadPreview}/>
-          </div>
-        </Card>
-      </div>
-    )
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, ipcRenderer, offline, projectStore, replication])
-  /* eslint-enable react/prop-types */
+  const child = React.useCallback(props => (
+    <ProjectListItem
+      {...props}
+      project={props.entry}
+      dispatch={dispatch}
+      replication={replication}
+      offline={offline}
+      fetchProjects={fetch}
+      setManagedProject={setManagedProject}
+    />
+  ), [dispatch, replication, offline, fetch, setManagedProject])
 
 
 
