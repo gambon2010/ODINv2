@@ -166,6 +166,10 @@ ProjectStore.prototype.delCredentials = async function (id) {
   return this.ipcRenderer.invoke('ipc:del:replication/credentials', id)
 }
 
+ProjectStore.prototype.getReplicationSeed = async function (id) {
+  return this.ipcRenderer.invoke('ipc:get:project:replication/seed', id)
+}
+
 ProjectStore.prototype.putReplicationSeed = async function (id, seed) {
   return this.ipcRenderer.invoke('ipc:put:project:replication/seed', id, seed)
 }

@@ -67,6 +67,20 @@ export const ipc = (databases, ipcMain, projectStore) => {
     return projectStore.delCredentials(id)
   })
 
+  ipcMain.handle('ipc:get:project:replication/seed', async (_, id) => {
+    try {
+      const uuid = id.split(':')[1]
+      const location = path.join(databases, uuid)
+      const db = leveldb({ location })
+      const session = sessionDB(db)
+      const seed = await session.get('replication:seed').catch(() => null)
+      await db.close()
+      return seed
+    } catch (error) {
+      console.error(error)
+    }
+  })
+
   ipcMain.handle('ipc:put:project:replication/seed', async (_, id, seed) => {
     try {
       const uuid = id.split(':')[1]
