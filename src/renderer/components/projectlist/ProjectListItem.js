@@ -128,7 +128,8 @@ export const ProjectListItem = React.forwardRef((props, ref) => {
           if (!cancelled) setLinkLost(false)
           return
         }
-        const response = await globalThis.fetch(`${url.replace(/\/$/, '')}/_matrix/client/versions`)
+        const origin = new URL(url).origin
+        const response = await globalThis.fetch(`${origin}/.well-known/matrix/client`)
         if (!response.ok) throw new Error('failed')
         if (!cancelled) setLinkLost(false)
       } catch (error) {
@@ -156,6 +157,7 @@ export const ProjectListItem = React.forwardRef((props, ref) => {
   }
   const handleResetCollab = async () => {
     await ipcRenderer.invoke('PURGE_PROJECT_COLLAB_SETTINGS', project.id)
+    setLinkLost(false)
   }
 
   const isOpen = project.tags ? project.tags.includes('OPEN') : false
