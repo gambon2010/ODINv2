@@ -37,14 +37,22 @@ export const ProjectList = () => {
     (async () => {
       const projects = await projectStore.getProjects(filter)
       const localProjectIds = projects.map(p => p.id)
-      const sharedProjects = replication ? (await replication.invited()) : []
+
+      let sharedProjects = []
+      if (replication) {
+        try {
+          sharedProjects = await replication.invited()
+        } catch (error) {
+          console.error(error)
+        }
+      }
 
       /*  Sometimes the replication API does not update the state immediately. In order to
           avoid duplicate entries - one from the local db and one from the replication API -
-          we remove these duplicate entries.
-      */
+          we remove these duplicate entries. We also ensure that each invitation has an id. */
       const invitedProjects = [...sharedProjects, ...ephemeralProjects]
-        .filter(project => !localProjectIds.includes(project.id))
+        .map(project => ({ ...project, id: project.id || project.room_id }))
+        .filter(project => project.id && !localProjectIds.includes(project.id))
         .map(project => ({ ...project, ...{ tags: ['INVITED'] } }))
 
       const allProjects = [...projects, ...invitedProjects]

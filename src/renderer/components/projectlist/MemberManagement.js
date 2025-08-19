@@ -22,7 +22,8 @@ const MemberManagement = props => {
   const [roles, setRoles] = React.useState(undefined)
 
   const getMembers = async () => {
-    // if (!replication) return
+    if (!managedProject?.id) return
+
     const members = await replication.members(managedProject.id)
     const roles = await replication.getRoles(managedProject.id)
     const p = {
@@ -42,7 +43,7 @@ const MemberManagement = props => {
   React.useEffect(() => {
     getMembers()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [replication])
+  }, [replication, managedProject?.id])
 
 
   const handleKick = async () => {
