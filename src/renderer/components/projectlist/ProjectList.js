@@ -78,6 +78,7 @@ const CustomButton = props => (
     onClick={props.onClick}
     disabled={props.disabled}
     style={{ ...props.style, background: 'inherit' }}
+    title={props.title}
   >
     {props.text}
   </Button>
@@ -88,7 +89,8 @@ CustomButton.propTypes = {
   onClick: PropTypes.func.isRequired,
   style: PropTypes.object,
   text: PropTypes.string.isRequired,
-  disabled: PropTypes.bool
+  disabled: PropTypes.bool,
+  title: PropTypes.string
 }
 
 
@@ -120,6 +122,7 @@ export const ProjectList = () => {
 
   const [replication, setReplication] = React.useState(undefined)
   const [managedProject, setManagedProject] = React.useState(null)
+  const [disabledProjects, setDisabledProjects] = React.useState(new Set())
 
   /* system/OS level notifications */
   const notifications = React.useRef(new Set())
@@ -145,6 +148,32 @@ export const ProjectList = () => {
       const localProjectIds = projects.map(p => p.id)
       const sharedProjects = replication ? (await replication.invited()) : []
 
+      const disabled = new Set()
+      for (const project of projects) {
+        if (!(project.tags || []).includes('SHARED')) continue
+
+        const seed = await projectStore.getReplicationSeed(project.id)
+        if (!seed || !seed.room || !seed.space) {
+          await projectStore.removeTag(project.id, 'SHARED')
+          await projectStore.putReplicationSeed(project.id, null)
+          disabled.add(project.id)
+          project.tags = (project.tags || []).filter(t => t !== 'SHARED')
+          continue
+        }
+
+        if (!replicationProvider.disabled) {
+          try {
+            const exists = await replicationProvider.roomExists(seed.room)
+            if (!exists) throw new Error('missing')
+          } catch (error) {
+            await projectStore.removeTag(project.id, 'SHARED')
+            await projectStore.putReplicationSeed(project.id, null)
+            disabled.add(project.id)
+            project.tags = (project.tags || []).filter(t => t !== 'SHARED')
+          }
+        }
+      }
+
       /*  Sometimes the replication API does not update the state immediately. In order to
           avoid duplicate entries - one from the local db and one from the replication API -
           we remove these duplicate entries.
@@ -156,8 +185,9 @@ export const ProjectList = () => {
       const allProjects = [...projects, ...invitedProjects]
       dispatch({ type: 'entries', entries: allProjects, candidateId: projectId })
       if (projectId) dispatch({ type: 'select', id: projectId })
+      setDisabledProjects(disabled)
     })()
-  }, [dispatch, filter, projectStore, replication])
+  }, [dispatch, filter, projectStore, replication, replicationProvider])
 
 
   /**
@@ -397,7 +427,12 @@ export const ProjectList = () => {
               <span className='card-text'>{militaryFormat.fromISO(project.lastAccess)}</span>
 
               <ButtonBar>
-                <CustomButton onClick={send('OPEN_PROJECT')} text='Open' disabled={isInvited && !isShared}/>
+                <CustomButton
+                  onClick={send('OPEN_PROJECT')}
+                  text='Open'
+                  disabled={(isInvited && !isShared) || disabledProjects.has(project.id)}
+                  title={disabledProjects.has(project.id) ? 'Sharing room missing' : undefined}
+                />
                 <CustomButton onClick={send('EXPORT_PROJECT')} text='Export' disabled={true}/>
                 { (replication && isInvited) && <CustomButton onClick={handleJoin} text='Join' disabled={offline}/> }
                 { (replication && !isInvited && !isShared && !isOpen) && <CustomButton onClick={handleShare} text='Share' disabled={offline}/> }
@@ -422,7 +457,7 @@ export const ProjectList = () => {
       </div>
     )
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, ipcRenderer, offline, projectStore, replication])
+  }, [dispatch, ipcRenderer, offline, projectStore, replication, disabledProjects])
   /* eslint-enable react/prop-types */
 
 
